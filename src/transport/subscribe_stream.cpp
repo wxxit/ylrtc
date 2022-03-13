@@ -12,7 +12,7 @@ extern thread_local MemoryPool memory_pool;
 
 SubscribeStream::SubscribeStream(const std::string& room_id, const std::string& stream_id, std::weak_ptr<WebrtcStream::Observer> observer, std::weak_ptr<SubscribeStreamObserver> subscribe_stream_observer)
     : WebrtcStream(room_id, stream_id, observer), subscribe_stream_observer_{subscribe_stream_observer}
-    , send_side_twcc_{std::make_unique<SendSideTWCC>()} {}
+    , send_side_twcc_{std::make_unique<SendSideTWCC>(this)} {}
 
 SubscribeStream::~SubscribeStream() {}
 
@@ -160,19 +160,7 @@ void SubscribeStream::ReceivePublishStreamRtpPacket(std::shared_ptr<RtpPacket> r
 void SubscribeStream::SetSimulcastLayer(uint32_t rid) {
   auto self(shared_from_this());
   work_thread_->PostAsync([self, this, rid] {
-    if (rid > kMaxSimulcastLayers || rid == kInvalidLayerIndex)
-      return;
-    if (rid == current_layer_rid_)
-      return;
-    uint32_t selected_rid = 0;
-    auto shared = subscribe_stream_observer_.lock();
-    if (shared)
-      shared->OnSubscribeStreamQueryRID(rid, selected_rid);
-    if (selected_rid == 0)
-      return;
-    target_layer_rid_ = selected_rid;
-    if (shared)
-      shared->OnSubscribeStreamFrameRequested(target_layer_rid_);
+    ChangeSimulcastLayer(rid);
   });
 }
 
@@ -313,4 +301,27 @@ void SubscribeStream::InjectSendSideTWCC(RtpPacket* packet, uint16_t twsn) {
   packet_status.transport_wide_sequence_number = twsn;
   packet_status.size = packet->Size();
   send_side_twcc_->SendPacket(packet_status);
+}
+
+void SubscribeStream::OnBandwidthOveruse() {
+}
+
+void SubscribeStream::OnBandwidthRecover() {
+}
+
+bool SubscribeStream::ChangeSimulcastLayer(uint32_t rid) {
+  if (rid > kMaxSimulcastLayers || rid == kInvalidLayerIndex)
+    return false;
+  if (rid == current_layer_rid_)
+    return true;
+  uint32_t selected_rid = 0;
+  auto shared = subscribe_stream_observer_.lock();
+  if (shared)
+    shared->OnSubscribeStreamQueryRID(rid, selected_rid);
+  if (selected_rid == 0)
+    return false;
+  target_layer_rid_ = selected_rid;
+  if (shared)
+    shared->OnSubscribeStreamFrameRequested(target_layer_rid_);
+  return true;
 }

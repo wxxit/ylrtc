@@ -20,7 +20,7 @@ class SubscribeStreamObserver {
   virtual void OnSubscribeStreamQueryRID(uint32_t want, uint32_t& result) = 0;
 };
 
-class SubscribeStream : public WebrtcStream, public SubscribeStreamTrack::Observer {
+class SubscribeStream : public WebrtcStream, public SubscribeStreamTrack::Observer,  public SendSideTWCCObserver {
  public:
   SubscribeStream(const std::string& room_id, const std::string& stream_id, std::weak_ptr<WebrtcStream::Observer> observer, std::weak_ptr<SubscribeStreamObserver> subscribe_stream_observer);
   ~SubscribeStream();
@@ -47,6 +47,10 @@ class SubscribeStream : public WebrtcStream, public SubscribeStreamTrack::Observ
   void OnSubscribeStreamTrackSendRtpPacket(RtpPacket* packet) override;
   void ReceiveTransportFeedback(const TransportFeedback& feedback);
   void InjectSendSideTWCC(RtpPacket* packet, uint16_t twsn);
+  void OnBandwidthOveruse() override;
+  void OnBandwidthRecover() override;
+  bool ChangeSimulcastLayer(uint32_t rid);
+
   std::vector<std::shared_ptr<SubscribeStreamTrack>> tracks_;
   std::unordered_map<uint32_t, std::shared_ptr<SubscribeStreamTrack>> ssrc_track_map_;
   std::weak_ptr<SubscribeStreamObserver> subscribe_stream_observer_;

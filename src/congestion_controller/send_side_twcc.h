@@ -27,16 +27,25 @@ struct PacketStatus {
   }
 };
 
+class SendSideTWCCObserver {
+ public:
+  virtual void OnBandwidthOveruse() = 0;
+  virtual void OnBandwidthRecover() = 0;
+};
+
 class SendSideTWCC {
  public:
-  SendSideTWCC();
+  SendSideTWCC(SendSideTWCCObserver* observer);
   void SendPacket(const PacketStatus& packet);
   void ReceiveTransportFeedback(const TransportFeedback& feedback);
-  BandwidthUsage State();
+
  private:
+  BandwidthUsage State();
   static constexpr int64_t kSendTimeWindowMillis = 60000;
   std::map<int64_t, PacketStatus> history_;
   SeqNumUnwrapper<uint16_t> seq_num_unwrapper_;
   std::unique_ptr<InterArrivalDelta> inter_arrival_delta_;
   std::unique_ptr<TrendlineEstimator> trendline_estimator_;
+  BandwidthUsage previous_bandwidth_usage_;
+  SendSideTWCCObserver* observer_;
 };
